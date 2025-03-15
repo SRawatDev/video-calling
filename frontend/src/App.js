@@ -1,11 +1,9 @@
-
-// client/src/App.js (React Frontend)
 import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 import Peer from "peerjs";
 
 const socket = io("https://video-calling-1-61d5.onrender.com", {
-  transports: ["websocket", "polling"]
+  transports: ["websocket", "polling"],
 });
 
 const peer = new Peer();
@@ -15,59 +13,75 @@ const App = () => {
   const [remoteId, setRemoteId] = useState("");
   const myVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-  console.log(myId)
+  const peerRef = useRef(peer); // Use ref to maintain peer instance across renders
 
   useEffect(() => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       console.error("getUserMedia is not supported in this browser");
       return;
     }
-  
+
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then((stream) => {
         if (myVideoRef.current) {
           myVideoRef.current.srcObject = stream;
         }
+
+        // Set peer open event
+        peerRef.current.on("open", (id) => {
+          setMyId(id);
+          socket.emit("join-room", "room1", id);
+        });
+
+        // Listen for when another user joins
+        socket.on("user-connected", (userId) => {
+          setRemoteId(userId);
+        });
+
+        // Handle incoming calls
+        peerRef.current.on("call", (call) => {
+          console.log("Incoming call... Answering");
+
+          navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then((stream) => {
+              call.answer(stream);
+              call.on("stream", (remoteStream) => {
+                if (remoteVideoRef.current) {
+                  remoteVideoRef.current.srcObject = remoteStream;
+                }
+              });
+            })
+            .catch((error) => console.error("Error accessing media devices.", error));
+        });
       })
       .catch((error) => {
         console.error("Error accessing media devices.", error);
       });
-  
-    peer.on("open", (id) => {
-      setMyId(id);
-      socket.emit("join-room", "room1", id);
-    });
-  
-    socket.on("user-connected", (userId) => {
-      setRemoteId(userId);
-    });
   }, []);
-  
 
   const callUser = () => {
-    if (!remoteId) return;
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
-      myVideoRef.current.srcObject = stream;
-      const call = peer.call(remoteId, stream);
-      call.on("stream", (remoteStream) => {
-        remoteVideoRef.current.srcObject = remoteStream;
-      });
-    }).catch((error) => {
-      console.error("Error accessing media devices.", error);
-    });
-  };
+    if (!remoteId) {
+      console.error("No remote user to call");
+      return;
+    }
 
-  peer.on("call", (call) => {
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
-      myVideoRef.current.srcObject = stream;
-      call.answer(stream);
-      call.on("stream", (remoteStream) => {
-        remoteVideoRef.current.srcObject = remoteStream;
-      });
-    }).catch((error) => {
-      console.error("Error accessing media devices.", error);
-    });
-  });
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then((stream) => {
+        if (myVideoRef.current) {
+          myVideoRef.current.srcObject = stream;
+        }
+
+        const call = peerRef.current.call(remoteId, stream);
+        call.on("stream", (remoteStream) => {
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = remoteStream;
+          }
+        });
+
+        call.on("error", (err) => console.error("Call error:", err));
+      })
+      .catch((error) => console.error("Error accessing media devices.", error));
+  };
 
   return (
     <div>
