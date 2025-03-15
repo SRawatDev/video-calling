@@ -10,7 +10,7 @@ app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:8080","http://192.168.100.53:8080/","https://video-calling-iota.vercel.app/"],
+    origin: "*",
     methods: ["GET", "POST"],
   },
 });
