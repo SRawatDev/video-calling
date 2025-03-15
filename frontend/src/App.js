@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 import Peer from "peerjs";
 
-const socket = io("http://192.168.1.5:4000", {
+const socket = io("https://video-calling-1-61d5.onrender.com", {
   transports: ["websocket", "polling"]
 });
 
